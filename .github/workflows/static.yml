@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+    <meta charset="UTF-8">
+    <title>Clicker Imperija - Su Save Sistema</title>
+    <style>
+        body {
+            display: flex; flex-direction: column; align-items: center;
+            background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif;
+            margin: 0; padding: 20px; min-height: 100vh; user-select: none;
+            transition: background 0.8s; overflow-x: hidden;
+        }
+
+        /* TEMŲ STILIAI */
+        body.gold-theme { background-color: #f1c40f; color: #784212; }
+        body.fire-theme { background-color: #7b241c; color: white; }
+        body.space-theme { background-color: #0b0d17; color: white; }
+
+        #fx-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .particle { position: absolute; opacity: 0.7; animation: move var(--d) linear infinite; }
+
+        @keyframes move {
+            0% { transform: translateY(110vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+        }
+        @keyframes fall {
+            0% { transform: translateY(-10vh); opacity: 1; }
+            100% { transform: translateY(110vh); opacity: 0; }
+        }
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
+
+        #score-display { font-size: 70px; font-weight: bold; margin: 10px 0; z-index: 10; position: relative; }
+        #power-display { font-size: 20px; margin-bottom: 20px; z-index: 10; position: relative; opacity: 0.8; }
+
+        #btn-container { position: relative; width: 200px; height: 200px; margin: 20px; z-index: 10; }
+        #clickButton {
+            width: 100%; height: 100%; background-color: #e74c3c; border: 8px solid #c0392b;
+            border-radius: 50%; cursor: pointer; box-shadow: 0 10px #95a5a6;
+            transition: 0.1s; font-size: 50px; display: flex; align-items: center;
+            justify-content: center; color: white; position: relative; overflow: hidden;
+        }
+        #clickButton:active { box-shadow: 0 5px #7f8c8d; transform: translateY(5px); }
+
+        .crack { position: absolute; pointer-events: none; background: rgba(0,0,0,0.7); display: none; z-index: 6; }
+        .crack-1 { width: 4px; height: 120px; top: -10px; left: 50%; transform: rotate(15deg); }
+        .crack-2 { width: 4px; height: 100px; bottom: -5px; left: 30%; transform: rotate(-40deg); }
+        .crack-3 { width: 4px; height: 90px; top: 40%; right: 10%; transform: rotate(80deg); }
+        .broken-state { clip-path: polygon(0% 0%, 75% 0%, 100% 85%, 100% 100%, 0% 100%); background-color: #a93226 !important; }
+        #wires { position: absolute; width: 60px; height: 60px; right: 0; top: 0; display: none; z-index: 7; }
+        .wire { position: absolute; width: 3px; height: 25px; border-radius: 2px; }
+
+        .game-area { display: flex; flex-direction: row; justify-content: center; align-items: flex-start; gap: 20px; width: 100%; max-width: 1200px; margin-top: 30px; z-index: 10; position: relative; }
+        .shop-column { display: none; flex: 1; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.75); padding: 15px; border-radius: 15px; backdrop-filter: blur(8px); }
+        
+        .space-theme .shop-column { background: rgba(255,255,255,0.1); }
+        .fire-theme .shop-column { background: rgba(0,0,0,0.4); }
+        .gold-theme .shop-column { background: rgba(255,255,255,0.4); border: 2px solid #b8860b; }
+
+        .shop-header { text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 15px; color: #2c3e50; }
+        .fire-theme .shop-header, .space-theme .shop-header { color: #fff; }
+        
+        .shop-item { background: white; padding: 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 3px 5px rgba(0,0,0,0.1); cursor: pointer; border: 3px solid transparent; transition: 0.2s; color: #333; }
+        .shop-item:hover { transform: translateY(-2px); border-color: #bdc3c7; }
+        .shop-item.owned { border-color: #2ecc71; }
+        .shop-item.active-skin { border-color: #3498db !important; background-color: #ebf5fb; }
+        .item-text b { font-size: 16px; display: block; }
+        .item-price { font-size: 16px; font-weight: bold; color: #27ae60; }
+
+        #auto-toggle { width: 100%; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px; color: white; display: none; }
+        .toggle-on { background-color: #27ae60; }
+        .toggle-off { background-color: #e67e22; }
+
+        #music-container { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+    </style>
+</head>
+<body id="body">
+
+    <div id="fx-layer"></div>
+    <div id="music-container"><div id="player"></div></div>
+
+    <div id="score-display">0</div>
+    <div id="power-display">Galia: 1 | Auto: 0/sek</div>
+
+    <div id="btn-container">
+        <button id="clickButton">
+            <span id="btn-text"></span>
+            <div id="c1" class="crack crack-1"></div>
+            <div id="c2" class="crack crack-2"></div>
+            <div id="c3" class="crack crack-3"></div>
+            <div id="wires">
+                <div class="wire" style="left:10px; top:5px; background:blue; transform:rotate(20deg)"></div>
+                <div class="wire" style="left:25px; top:0px; background:yellow; transform:rotate(-10deg)"></div>
+                <div class="wire" style="left:40px; top:10px; background:red; height:30px; transform:rotate(45deg)"></div>
+            </div>
+        </button>
+    </div>
+
+    <div class="game-area">
+        <div id="auto-shop-col" class="shop-column"><div class="shop-header">🤖 Auto-Clicker</div><button id="auto-toggle" class="toggle-on">Robotai dirba</button><div id="auto-list"></div></div>
+        <div id="power-shop-col" class="shop-column"><div class="shop-header">⚡ Galia</div><div id="power-list"></div></div>
+        <div id="skin-shop-col" class="shop-column"><div class="shop-header">🎨 Skinai</div><div id="skin-list"></div></div>
+    </div>
+
+    <script>
+        // YOUTUBE API
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        var player; var musicStarted = false;
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '0', width: '0', videoId: 'MF7nCv0v42U',
+                playerVars: { 'autoplay': 1, 'loop': 1, 'playlist': 'MF7nCv0v42U' },
+                events: { 'onReady': (e) => e.target.setVolume(50) }
+            });
+        }
+
+        // ŽAIDIMO KINTAMIEJI
+        let score = 0; let power = 1; let autoClickSpeed = 0; let autoActive = true;
+        let isHovering = false; let inputKeys = ""; let currentSkinId = null;
+
+        const skinItems = [
+            { id: 1, k: 10000000, v: "Mėlynas", c: "#3498db", b: "#2980b9", t: "", owned: false },
+            { id: 2, k: 50000000, v: "Žalias", c: "#2ecc71", b: "#27ae60", t: "", owned: false },
+            { id: 3, k: 100000000, v: "Šypsenėlė", c: "#f1c40f", b: "#f39c12", t: "😊", owned: false },
+            { id: 4, k: 500000000, v: "Kietas", c: "#34495e", b: "#2c3e50", t: "😎", owned: false },
+            { id: 5, k: 1000000000, v: "Auksas", c: "#ffd700", b: "#b8860b", t: "💰", owned: false },
+            { id: 6, k: 10000000000, v: "Ugnis", c: "#e67e22", b: "#d35400", t: "🔥", owned: false },
+            { id: 7, k: 100000000000, v: "Kosmosas", c: "#8e44ad", b: "#2c3e50", t: "🌌", owned: false }
+        ];
+
+        // IŠSAUGOJIMAS
+        function saveGame() {
+            const data = { score, power, autoClickSpeed, autoActive, currentSkinId, ownedSkins: skinItems.filter(s => s.owned).map(s => s.id) };
+            localStorage.setItem('clickerSave', JSON.stringify(data));
+        }
+
+        // UŽKROVIMAS
+        function loadGame() {
+            const saved = localStorage.getItem('clickerSave');
+            if (saved) {
+                const data = JSON.parse(saved);
+                score = data.score || 0;
+                power = data.power || 1;
+                autoClickSpeed = data.autoClickSpeed || 0;
+                autoActive = data.autoActive ?? true;
+                currentSkinId = data.currentSkinId;
+                if (data.ownedSkins) {
+                    data.ownedSkins.forEach(id => {
+                        const skin = skinItems.find(s => s.id === id);
+                        if (skin) skin.owned = true;
+                    });
+                }
+                if (currentSkinId) {
+                    const activeSkin = skinItems.find(s => s.id === currentSkinId);
+                    if (activeSkin) applySkin(activeSkin);
+                }
+            }
+        }
+
+        function createFX(type) {
+            const fxLayer = document.getElementById('fx-layer');
+            fxLayer.innerHTML = '';
+            let count = type === 'space' ? 100 : 30;
+            for(let i=0; i<count; i++){
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.style.left = Math.random() * 100 + '%';
+                p.style.setProperty('--d', (Math.random() * 3 + 2) + 's');
+                if(type === 'space') {
+                    p.style.background = 'white'; p.style.borderRadius = '50%';
+                    p.style.width = p.style.height = Math.random() * 3 + 'px';
+                    p.style.animationName = 'twinkle'; p.style.top = Math.random() * 100 + '%';
+                } else if(type === 'fire') {
+                    p.style.background = 'orange'; p.style.width = '6px'; p.style.height = '6px';
+                    p.style.boxShadow = '0 0 10px red'; p.style.animationName = 'move';
+                } else if(type === 'gold') {
+                    p.innerText = '$'; p.style.color = '#b8860b'; p.style.fontWeight = 'bold';
+                    p.style.fontSize = '20px'; p.style.animationName = 'fall';
+                }
+                fxLayer.appendChild(p);
+            }
+        }
+
+        function applySkin(s) {
+            currentSkinId = s.id;
+            const b = document.getElementById('body');
+            b.classList.remove('space-theme', 'fire-theme', 'gold-theme');
+            document.getElementById('clickButton').style.backgroundColor = s.c;
+            document.getElementById('clickButton').style.borderColor = s.b;
+            document.getElementById('btn-text').innerText = s.t;
+            if(s.v === "Kosmosas") { b.classList.add('space-theme'); createFX('space'); }
+            else if(s.v === "Ugnis") { b.classList.add('fire-theme'); createFX('fire'); }
+            else if(s.v === "Auksas") { b.classList.add('gold-theme'); createFX('gold'); }
+            renderSkins();
+            saveGame();
+        }
+
+        const autoItems = [{k:1000000,g:1,n:"Lėtas Botas"},{k:10000000,g:5,n:"Greitas Botas"},{k:100000000,g:25,n:"Turbo Botas"},{k:1000000000,g:100,n:"Mega Kompiuteris"}];
+        const powerItems = [{k:10,b:1},{k:100,b:2},{k:1000,b:3},{k:10000,b:4},{k:100000,b:5},{k:1000000,b:50},{k:10000000,b:250},{k:100000000,b:1500},{k:1000000000,b:10000},{k:10000000000,b:75000}];
+
+        function init() {
+            loadGame();
+            autoItems.forEach(i => {
+                let d = createItem(i.k, i.n, `+${i.g}/sek`);
+                d.onclick = () => { if(score >= i.k){ score -= i.k; autoClickSpeed += i.g; document.getElementById('auto-toggle').style.display="block"; updateUI(); saveGame(); }};
+                document.getElementById('auto-list').appendChild(d);
+            });
+            powerItems.forEach(i => {
+                let d = createItem(i.k, `Bonusas +${i.b}`, "Galia");
+                d.onclick = () => { if(score >= i.k){ score -= i.k; power += i.b; updateUI(); saveGame(); }};
+                document.getElementById('power-list').appendChild(d);
+            });
+            renderSkins(); updateUI();
+        }
+
+        function createItem(k, n, a) {
+            let d = document.createElement('div'); d.className = 'shop-item';
+            d.innerHTML = `<div class="item-text"><b>${n}</b><small>${a}</small></div><div class="item-price">${k.toLocaleString()}</div>`;
+            return d;
+        }
+
+        function renderSkins() {
+            const list = document.getElementById('skin-list'); list.innerHTML = '';
+            skinItems.forEach(s => {
+                let d = document.createElement('div'); d.className = 'shop-item';
+                if(s.owned) d.classList.add('owned');
+                if(currentSkinId === s.id) d.classList.add('active-skin');
+                let label = s.owned ? (currentSkinId === s.id ? "NAUDOJAMA" : "TURITE") : s.k.toLocaleString();
+                d.innerHTML = `<div class="item-text"><b>Skin: ${s.v}</b><small>Keičia temą</small></div><div class="item-price">${label}</div>`;
+                d.onclick = () => { if(s.owned) applySkin(s); else if(score >= s.k){ score -= s.k; s.owned = true; applySkin(s); } updateUI(); };
+                list.appendChild(d);
+            });
+        }
+
+        document.getElementById('clickButton').onclick = () => { 
+            score += power; updateUI(); saveGame();
+            if(!musicStarted && player && player.playVideo) { player.playVideo(); musicStarted = true; }
+        };
+
+        function updateUI() {
+            document.getElementById('score-display').textContent = Math.floor(score).toLocaleString();
+            document.getElementById('power-display').textContent = `Galia: ${power.toLocaleString()} | Auto: ${autoClickSpeed}/sek`;
+            if (score >= 1000000) document.getElementById('c1').style.display = "block";
+            if (score >= 100000000) { document.getElementById('c2').style.display = "block"; document.getElementById('c3').style.display = "block"; }
+            if (score >= 1000000000) { document.getElementById('clickButton').classList.add('broken-state'); document.getElementById('wires').style.display = "block"; }
+            if (score >= 10 || power > 1 || autoClickSpeed > 0) { 
+                document.querySelectorAll('.shop-column').forEach(el => el.style.display = 'flex');
+                if(autoClickSpeed > 0) document.getElementById('auto-toggle').style.display = "block";
+            }
+        }
+
+        setInterval(() => { if(autoActive && autoClickSpeed > 0) { score += (autoClickSpeed * (power * 0.1 + 1)); updateUI(); saveGame(); } }, 1000);
+        init();
+
+        // QWERTY Cheat
+        document.getElementById('clickButton').onmouseenter = () => { isHovering = true; inputKeys = ""; };
+        document.getElementById('clickButton').onmouseleave = () => isHovering = false;
+        window.onkeydown = (e) => {
+            if(isHovering) {
+                inputKeys += e.key.toLowerCase();
+                if(inputKeys.endsWith("qwerty")) {
+                    let v = prompt("Kiek pridėti?");
+                    if(v) { score += Number(v); updateUI(); saveGame(); }
+                    inputKeys = "";
+                }
+            }
+        };
+    </script>
+</body>
+</html>
